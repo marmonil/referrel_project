@@ -4,10 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\coustomer_login;
 use App\Models\customerEmailVerify;
+use App\Models\Network;
 use App\Notifications\customerEmailVerifynotification;
 use Illuminate\Http\Request;
 use carbon\carbon;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\URL;
+
 
 class hobicontroller extends Controller
 {
@@ -19,13 +24,54 @@ class hobicontroller extends Controller
 
     function coustomer_register_store(Request $request)
     {
-        coustomer_login::insert([
-            'name' => $request->name,
-            'email' => $request->email,
-            'password' => bcrypt($request->password),
-            'referrel_code' => $request->referrel_code,
-            'created_at' => carbon::now(),
+        $request->validate([
+            'name' => 'required|string|min:4',
+            'email' => 'required|string|email|max:100|unique:coustomer_logins',
+            'password' => 'required|min:6|confirmed',
         ]);
+        $referrelCode = Str::random(10);
+        if (isset($request->referrel_code)) {
+            $user_data = coustomer_login::where('referrel_code', $request->referrel_code)->get();
+            if (count($user_data) > 0) {
+                $user_id = coustomer_login::insertGetId([
+                    'name' => $request->name,
+                    'email' => $request->email,
+                    'password' => bcrypt($request->password),
+                    'referrel_code' => $referrelCode,
+                    'created_at' => carbon::now(),
+                ]);
+                Network::insert([
+                    'referrel_code' => $request->referrel_code,
+                    'user_id' => $user_id,
+                    'parent_user_id' => $user_data[0]['id'],
+                ]);
+            } else {
+                return back()->with('error', 'Please enter valid referrel code');
+            }
+        } else {
+            coustomer_login::insert([
+                'name' => $request->name,
+                'email' => $request->email,
+                'password' => bcrypt($request->password),
+                'referrel_code' => $referrelCode,
+                'created_at' => carbon::now(),
+            ]);
+        }
+
+        $domain = URL::to('/');
+        $url = $domain . '/referral_register?ref=' . $referrelCode;
+        $data['url'] = $url;
+        $data['name'] = $request->name;
+        $data['email'] = $request->email;
+        $data['password'] = $request->password;
+        $data['title'] = 'registered'; // Corrected the spelling of 'registered'
+
+        Mail::send('emails.registart_mail', ['data' => $data], function ($message) use ($data) {
+            $message->to($data['email'])->subject($data['title']);
+        });
+
+
+
         $customer = coustomer_login::where('email', $request->email)->firstOrfail();
         customerEmailVerify::where('customer_id', $customer->id)->delete();
         $verify_email = customerEmailVerify::create([
@@ -45,5 +91,20 @@ class hobicontroller extends Controller
         ]);
         $token->delete();
         return redirect('hobi/register/')->with('email_verify', 'email verify success ! ');
+    }
+    function referral_register(Request $request)
+    {
+        if (isset($request->ref)) {
+            $referrel = $request->ref;
+            $user_data = coustomer_login::where('referrel_code', $referrel)->get();
+
+            if (count($user_data) > 0) {
+                return view('frontend.referrel_register', compact('referrel'));
+            } else {
+                return view('frontend.404');
+            }
+        } else {
+            redirect('/');
+        }
     }
 }

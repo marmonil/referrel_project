@@ -123,6 +123,7 @@ Route::get('hobi/register/', [hobicontroller::class, 'hobi_register'])->name('ho
 Route::post('coustomer/register/store', [hobicontroller::class, 'coustomer_register_store'])->name('coustomer.register.store');
 Route::post('coustomer/login', [customerloginController::class, 'customer_login'])->name('customer.login');
 Route::get('coustomer/logout', [customerloginController::class, 'customer_logout'])->name('customer.logout');
+Route::get('/referral_register', [hobicontroller::class, 'referral_register'])->name('referral.register');
 Route::get('invoice/download/{order_id}', [CustomerController::class, 'invoicedownload'])->name('invoicedownload');
 
 
